@@ -62,7 +62,7 @@ Persistence decision: use embedded SQLite through a Node package such as `better
 | TASK-008 | Implement card create/edit/soft-delete/restore, colors, labels, priority, deadlines, checklists, and completion state. | ✅ | 2026-11-23 |
 | TASK-009 | Implement card move and stable manual ordering; insert new cards at the top; expose matching API operations. | ✅ | 2026-11-23 |
 | TASK-010 | Implement WIP configuration (soft/hard) and visible soft-limit warning thresholds; hard limit rejects moves/creates that exceed capacity. | ✅ | 2026-11-23 |
-| TASK-011 | Add focused validation/error tests for malformed input, missing board/column/card, invalid moves, and duplicate/retried requests. (Resource-not-found, invalid-move, and retry/idempotency cases remain to be tested/decided.) | | |
+| TASK-011 | Add focused validation/error and retry tests for malformed inputs, missing resources, invalid moves, and Idempotency-Key replay/conflict behavior. | ✅ | 2026-11-23 |
 
 ### Implementation Phase 3 — Browser experience
 
@@ -94,7 +94,7 @@ Persistence decision: use embedded SQLite through a Node package such as `better
 
 - **EDGE-INPUT-001**: Empty or malformed titles/fields → Validate server-side and return field-specific 4xx errors; UI keeps entered values.
 - **EDGE-STATE-001**: API process restart → SQLite is the durable source of truth; verify board/card state survives restart.
-- **EDGE-STATE-002**: Repeated create requests → Define idempotency for AI integrations or document that retries can create duplicates; settle during API contract task.
+- **EDGE-STATE-002**: Repeated AI create requests → Use `Idempotency-Key` scoped to the target column; same key/request returns the original card, changed request with the same key returns 409.
 - **EDGE-STATE-003**: Concurrent reorder/move requests → Persist ordering transactionally and use a deterministic position/reindex strategy.
 - **EDGE-DATA-001**: Delete non-empty custom column → Do not cascade-delete cards; require a destination column or block until cards are moved.
 - **EDGE-DATA-002**: Archive contains more than 10 cards → Show 10 most recently archived; older cards remain stored and are reachable via reveal-all.

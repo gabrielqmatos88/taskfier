@@ -29,6 +29,8 @@ test('board, card, ordering, WIP, search, and import/export APIs work together',
   const ordered=(await request(`/api/boards/${board.id}`)).data.columns;assert.equal(ordered.at(-1).title,'Archive');assert.equal(ordered[ordered.length-2].title,'Review');
   response=await request(`/api/columns/${idByTitle['To Do']}/cards`,{method:'POST',body:JSON.stringify({title:'Write plan',description:'seed a board',labelIds:[label.id],priority:'high',checklist:[{text:'Review',done:false}]})});assert.equal(response.res.status,201,`${JSON.stringify(response.data)}\n${logs}`);
   const card=response.data;assert.equal(card.color,'yellow');assert.equal(card.labels[0].name,'AI');
+  assert.equal((await request(`/api/cards/${card.id}`,{method:'PATCH',body:JSON.stringify({columnId:'missing-column'})})).res.status,400);
+  assert.equal((await request('/api/cards/missing-card',{method:'PATCH',body:JSON.stringify({title:'No card'})})).res.status,404);
   response=await request(`/api/cards/${card.id}`,{method:'PATCH',body:JSON.stringify({columnId:idByTitle.WIP,color:'purple'})});assert.equal(response.data.column_id,idByTitle.WIP);assert.equal(response.data.color,'purple');
   const search=await request(`/api/boards/${board.id}/cards?q=seed&label=${label.id}`);assert.equal(search.data.length,1);
   await request(`/api/columns/${idByTitle.WIP}`,{method:'PATCH',body:JSON.stringify({wipLimit:1,wipMode:'hard'})});
@@ -78,4 +80,11 @@ test('external tools can create boards and invalid payloads are rejected',async(
   assert.equal((await request('/api/boards',{method:'POST',body:JSON.stringify({title:'Bad',background:'url(javascript:alert(1))'})})).res.status,400);
   assert.equal((await request(`/api/columns/${columns[1].id}/cards`,{method:'POST',body:JSON.stringify({title:'Bad priority',priority:'not-a-priority'})})).res.status,400);
   assert.equal((await request(`/api/columns/${columns[1].id}/cards`,{method:'POST',body:JSON.stringify({title:'Bad color',color:'rainbow'})})).res.status,400);
+});
+test('Idempotency-Key prevents duplicate cards on AI client retries',async()=>{
+  const board=(await request('/api/boards')).data[0],view=(await request(`/api/boards/${board.id}`)).data,column=view.columns[1];
+  const path=`/api/columns/${column.id}/cards`,body=JSON.stringify({title:'Retry-safe task'}),headers={'Idempotency-Key':'ai-plan-task-42'};
+  const first=await request(path,{method:'POST',body,headers});assert.equal(first.res.status,201);
+  const retry=await request(path,{method:'POST',body,headers});assert.equal(retry.res.status,200);assert.equal(retry.data.id,first.data.id);
+  const conflict=await request(path,{method:'POST',body:JSON.stringify({title:'Different task'}),headers});assert.equal(conflict.res.status,409);
 });

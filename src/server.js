@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import express from 'express';
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
@@ -11,7 +12,7 @@ const db = new Database(resolve(dataDir, 'kanban.sqlite'));
 db.pragma('foreign_keys = ON');
 db.pragma('journal_mode = WAL');
 const schemaVersion = db.pragma('user_version', { simple: true });
-if (schemaVersion > 1) throw new Error(`Database schema ${schemaVersion} is newer than this application`);
+if (schemaVersion > 2) throw new Error(`Database schema ${schemaVersion} is newer than this application`);
 db.exec(`
   CREATE TABLE IF NOT EXISTS boards (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, background TEXT NOT NULL DEFAULT '#f3f4f6',
@@ -36,8 +37,13 @@ db.exec(`
     card_id TEXT NOT NULL REFERENCES cards(id), label_id TEXT NOT NULL REFERENCES labels(id),
     PRIMARY KEY(card_id, label_id)
   );
+  CREATE TABLE IF NOT EXISTS idempotency_keys (
+    column_id TEXT NOT NULL REFERENCES columns(id), key TEXT NOT NULL,
+    request_hash TEXT NOT NULL, response_json TEXT NOT NULL, created_at TEXT NOT NULL,
+    PRIMARY KEY(column_id,key)
+  );
 `);
-db.pragma('user_version = 1');
+db.pragma('user_version = 2');
 const id = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const palette = new Set(['yellow', 'green', 'red', 'blue', 'purple', 'gray', 'white']);
@@ -195,6 +201,10 @@ app.post('/api/columns/:columnId/cards',(req,res)=>{
   if(!validTitle(title))return fail(res,400,'Card title is required (maximum 200 characters)');
   if(typeof description!=='string'||description.length>10000)return fail(res,400,'Description must be text no longer than 10000 characters');
   if(!priorities.has(priority)||!validDeadline(deadline)||!validChecklist(checklist))return fail(res,400,'Invalid priority, deadline, or checklist');
+  const key=req.get('Idempotency-Key');
+  if(key!==undefined&&!/^[A-Za-z0-9._:-]{1,200}$/.test(key))return fail(res,400,'Idempotency-Key must be 1-200 safe characters');
+  const requestHash=key?createHash('sha256').update(JSON.stringify({columnId:col.id,body:req.body})).digest('hex'):null;
+  if(key){const prior=db.prepare('SELECT request_hash,response_json FROM idempotency_keys WHERE column_id=? AND key=?').get(col.id,key);if(prior){if(prior.request_hash!==requestHash)return fail(res,409,'Idempotency-Key was already used with a different request');return res.status(200).json(JSON.parse(prior.response_json));}}
   const count=db.prepare('SELECT COUNT(*) AS n FROM cards WHERE column_id=? AND deleted_at IS NULL').get(col.id).n;
   if(col.wip_limit&&col.wip_mode==='hard'&&count>=col.wip_limit)return fail(res,409,'Column WIP limit reached');
   const cardId=id(),t=now(), color=req.body.color??'yellow';if(!palette.has(color))return fail(res,400,'Unsupported card color');
@@ -203,9 +213,12 @@ app.post('/api/columns/:columnId/cards',(req,res)=>{
     db.prepare('INSERT INTO cards (id,board_id,column_id,title,description,color,priority,deadline,checklist,position,archived_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(cardId,col.board_id,col.id,title.trim(),description,color,priority,deadline,JSON.stringify(checklist),0,col.title==='Archive'?t:null,t,t);
     const labels=Array.isArray(req.body.labelIds)?req.body.labelIds:[];
     for(const labelId of labels){if(!db.prepare('SELECT 1 FROM labels WHERE id=? AND board_id=?').get(labelId,col.board_id))throw new Error('Invalid label');db.prepare('INSERT INTO card_labels(card_id,label_id) VALUES(?,?)').run(cardId,labelId);}
+    const stored=db.prepare('SELECT * FROM cards WHERE id=?').get(cardId);
+    const response={...stored,labels:cardLabels(cardId),checklist:JSON.parse(stored.checklist)};
+    if(key)db.prepare('INSERT INTO idempotency_keys(column_id,key,request_hash,response_json,created_at) VALUES(?,?,?,?,?)').run(col.id,key,requestHash,JSON.stringify(response),t);
+    return response;
   });
-  try{create();}catch(e){if(e.message==='Invalid label')return fail(res,400,e.message);throw e;}
-  res.status(201).json({...db.prepare('SELECT * FROM cards WHERE id=?').get(cardId),labels:cardLabels(cardId),checklist:JSON.parse(db.prepare('SELECT checklist FROM cards WHERE id=?').get(cardId).checklist)});
+  try{return res.status(201).json(create());}catch(e){if(e.message==='Invalid label')return fail(res,400,e.message);throw e;}
 });
 app.patch('/api/cards/:cardId',(req,res)=>{
   const card=getCard(req.params.cardId);if(!card)return fail(res,404,'Card not found');

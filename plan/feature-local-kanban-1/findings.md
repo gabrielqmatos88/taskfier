@@ -175,7 +175,7 @@ The user answered the 14 product questions in `docs/answers.md` and clarified pe
 
 - **Path**: `src/server.js`, `public/index.html`, `public/app.js`, `public/app.css`, `test/api.test.js`, `README.md`, `package.json`
 - **Purpose**: Express API and SQLite persistence, local browser UI, API integration tests, and setup/API documentation.
-- **Limitations**: Chromium is not installed in the execution environment, so browser-driven end-to-end verification could not be run. API resource-not-found, invalid-move, and request-retry/idempotency tests remain incomplete.
+- **Limitations**: Chromium is not installed in the execution environment, so browser-driven end-to-end verification could not be run. Idempotency is supported on card creation when callers provide `Idempotency-Key`; retention of idempotency records is unbounded.
 - **Key Functions/Classes**: `boardView`, `cardsForColumn`, `reorderCards`, Express route handlers, browser `render`, `moveMenu`, and `saveCard`.
 - **Relevant Patterns**: Same-origin JSON API, server-side validation, SQLite transactions for multi-record updates, and versioned JSON import/export.
 
@@ -195,8 +195,8 @@ The user answered the 14 product questions in `docs/answers.md` and clarified pe
 
 ## Implementation Progress
 
-- Implemented API CRUD/workflow routes, SQLite schema versioning, seeded board, column/card ordering, WIP limits, soft deletion and restore, archive visibility, labels, filters, import/export, and localhost checks.
+- Implemented API CRUD/workflow routes, SQLite schema version 2, seeded board, transactional column/card ordering, WIP limits, soft deletion and restore, archive visibility, labels, filters, import/export, localhost checks, and retry-safe card creation.
 - Implemented static UI for board switching/editing, column management, card editing, labels/checklists, drag/drop, menus, search/filters, archive expansion, deletion recovery, and import/export.
-- **Verification run**: `npm test` passed 6 tests; `node --check src/server.js` and `node --check public/app.js` passed; live HTTP smoke check returned 200 for `/`, `/app.js`, `/app.css`, and `/api/health`, and confirmed the five seed columns.
-- **Not run**: Chromium end-to-end test; no Chromium binary is installed. Plan tasks TASK-011 (remaining invalid-resource/move/retry cases) and TASK-022 remain open.
+- **Verification run**: `npm test` passed 7 tests; `node --check src/server.js` and `node --check public/app.js` passed; live HTTP smoke check returned 200 for `/`, `/app.js`, `/app.css`, and `/api/health`, and confirmed the five seed columns.
+- **Not run**: Chromium end-to-end test; no Chromium binary is installed. Plan task TASK-022 remains open.
 - **Dependency note**: `npm install` succeeded, but npm reported the `better-sqlite3` install script was not approved; the installed package successfully opened SQLite and passed integration tests in this environment. Confirm package install-script policy for fresh user environments.

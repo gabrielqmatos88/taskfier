@@ -33,6 +33,7 @@ All API routes are local HTTP endpoints under `/api`. The server listens on loop
 | GET, POST | `/api/export`, `/api/import` | Export all active boards or import versioned JSON |
 
 For card creation and updates, send JSON. Card creation accepts `title`, `description`, `color`, `priority`, `deadline`, `checklist`, and `labelIds`. A move uses `PATCH /api/cards/:cardId` with `columnId` and optional `position`. The API responds with JSON errors shaped as `{ "error": "..." }` for rejected requests.
+For retry-safe card creation by automation, send a stable `Idempotency-Key` header (1–200 letters, digits, `.`, `_`, `:`, or `-`). Repeating the same key and request returns the original card; reusing the key with a different request returns `409`. Keys are scoped to their target column.
 
 ## Tests
 
