@@ -196,7 +196,7 @@ The user answered the 14 product questions in `docs/answers.md` and clarified pe
 ## Implementation Progress
 
 - Implemented API CRUD/workflow routes, SQLite schema version 2, seeded board, transactional column/card ordering, WIP limits, soft deletion and restore, archive visibility, labels, filters, import/export, localhost checks, and retry-safe card creation.
-- Implemented static UI for board switching/editing, column management, card editing, labels/checklists, drag/drop, menus, search/filters, archive expansion, deletion recovery, and import/export.
+- Implemented static UI for board switching/editing, content-growing columns, portaled card menus that avoid scroll-container clipping, column management, card editing, labels/checklists, drag/drop, search/filters, archive expansion, deletion recovery, and import/export.
 - **Verification run**: `npm test` passed 7 tests; `node --check src/server.js` and `node --check public/app.js` passed; live HTTP smoke check returned 200 for `/`, `/app.js`, `/app.css`, and `/api/health`, and confirmed the five seed columns.
 - **Not run**: Chromium end-to-end test; no Chromium binary is installed. Plan task TASK-022 remains open.
 - **Dependency note**: `npm install` succeeded, but npm reported the `better-sqlite3` install script was not approved; the installed package successfully opened SQLite and passed integration tests in this environment. Confirm package install-script policy for fresh user environments.
