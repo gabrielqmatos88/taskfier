@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7f8fa">
+  <title>Local Kanban</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Local Kanban home"><span class="brand-mark">K</span> kanban<span
+        class="local-badge">LOCAL</span></a>
+    <div class="board-picker"><select id="board-select" aria-label="Choose board"></select><button id="new-board"
+        class="icon-button" title="Create board" aria-label="Create board">＋</button></div>
+    <div class="top-actions"><button id="deleted-button" class="quiet-button">Deleted</button><button id="export-button"
+        class="quiet-button">Export</button><label class="quiet-button import-label">Import<input id="import-input"
+          type="file" accept="application/json,.json" hidden></label><span id="save-status"
+        aria-live="polite">Ready</span></div>
+  </header>
+  <main id="app">
+    <section class="board-heading">
+      <div><input id="board-title" class="board-title" aria-label="Board title" maxlength="200">
+        <p id="board-subtitle" class="subtitle"></p>
+      </div>
+      <label class="background-control" title="Board background"><span>Board color</span><input id="board-color"
+          type="color" aria-label="Board background color"></label>
+    </section>
+    <section class="toolbar" aria-label="Find cards">
+      <label class="search-box"><span aria-hidden="true">⌕</span><input id="search" type="search"
+          placeholder="Search titles and descriptions" aria-label="Search titles and descriptions"></label>
+      <select id="filter-label" aria-label="Filter by label">
+        <option value="">All labels</option>
+      </select>
+      <input id="filter-deadline" type="date" aria-label="Filter by deadline">
+      <button id="clear-filters" class="quiet-button">Clear filters</button>
+    </section>
+    <section id="board" class="board" aria-label="Kanban board"></section>
+  </main>
+  <dialog id="card-dialog" class="dialog">
+    <form id="card-form" method="dialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">CARD DETAILS</p>
+          <h2 id="card-dialog-title">New card</h2>
+        </div><button class="icon-button close-dialog" type="button" aria-label="Close">×</button>
+      </div>
+      <input type="hidden" id="card-id"><input type="hidden" id="card-column-id">
+      <label>Title<input id="card-title" required maxlength="200" autocomplete="off"></label>
+      <label>Description<textarea id="card-description" rows="4" placeholder="Add useful context"></textarea></label>
+      <div class="form-row"><label>Priority<select id="card-priority">
+            <option value="low">Low</option>
+            <option value="normal" selected>Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select></label><label>Deadline<input id="card-deadline" type="date"></label></div>
+      <label>Card color<select id="card-color">
+          <option value="yellow">Yellow</option>
+          <option value="green">Green</option>
+          <option value="red">Red</option>
+          <option value="blue">Blue</option>
+          <option value="purple">Purple</option>
+          <option value="gray">Gray</option>
+          <option value="white">White</option>
+        </select></label>
+      <fieldset class="label-picker">
+        <legend>Labels</legend>
+        <div id="label-checkboxes" class="checkboxes"></div>
+        <div class="inline-create"><input id="new-label-name" placeholder="Create a label" maxlength="100"><input
+            id="new-label-color" type="color" value="#64748b" aria-label="New label color"><button id="create-label"
+            type="button" class="quiet-button">Add label</button></div>
+      </fieldset>
+      <fieldset class="checklist-field">
+        <legend>Checklist</legend>
+        <div id="checklist-items"></div>
+        <div class="inline-create"><input id="checklist-new" placeholder="Add checklist item"><button
+            id="add-checklist-item" type="button" class="quiet-button">Add item</button></div>
+      </fieldset>
+      <div class="dialog-actions"><button id="delete-card" class="danger-button" type="button" hidden>Delete
+          card</button><span class="spacer"></span><button class="quiet-button close-dialog"
+          type="button">Cancel</button><button class="primary-button" type="submit">Save card</button></div>
+    </form>
+  </dialog>
+  <dialog id="board-dialog" class="dialog compact">
+    <form id="board-form" method="dialog">
+      <div class="dialog-header">
+        <h2>New board</h2><button class="icon-button close-dialog" type="button" aria-label="Close">×</button>
+      </div><label>Board title<input id="new-board-title" required maxlength="200" autofocus></label>
+      <div class="dialog-actions"><span class="spacer"></span><button class="quiet-button close-dialog"
+          type="button">Cancel</button><button class="primary-button" type="submit">Create board</button></div>
+    </form>
+  </dialog>
+  <dialog id="column-dialog" class="dialog compact">
+    <form id="column-form" method="dialog">
+      <div class="dialog-header">
+        <h2 id="column-dialog-title">Column settings</h2><button class="icon-button close-dialog" type="button"
+          aria-label="Close">×</button>
+      </div><input type="hidden" id="column-id"><label>Column name<input id="column-title" required
+          maxlength="200"></label>
+      <div class="form-row"><label>WIP limit<input id="column-wip" type="number" min="1"
+            placeholder="No limit"></label><label>Limit type<select id="column-wip-mode">
+            <option value="soft">Soft warning</option>
+            <option value="hard">Hard limit</option>
+          </select></label></div>
+      <div class="column-reorder"><button id="move-column-left" class="quiet-button" type="button">← Move
+          left</button><button id="move-column-right" class="quiet-button" type="button">Move right →</button></div>
+      <div class="dialog-actions"><button id="delete-column" class="danger-button" type="button" hidden>Delete
+          column</button><span class="spacer"></span><button class="quiet-button close-dialog"
+          type="button">Cancel</button><button class="primary-button" type="submit">Save</button></div>
+    </form>
+  </dialog>
+  <dialog id="deleted-dialog" class="dialog compact">
+    <div class="dialog-header">
+      <h2>Deleted cards</h2><button class="icon-button close-dialog" type="button" aria-label="Close">×</button>
+    </div>
+    <div id="deleted-list"></div>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+
+</html>
