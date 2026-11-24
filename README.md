@@ -5,11 +5,11 @@ A local-first Kanban board for Chromium-based browsers. The Node.js Express API 
 ## Requirements and startup
 
 - Node.js 22 or newer.
-- From the project directory, run `npm install`, then `npm start`.
-- Open <http://127.0.0.1:4173> in Chromium.
-- `npm run dev` restarts the server when source files change.
-- Set `PORT` to change the HTTP port. Set `KANBAN_DATA_DIR` to store `kanban.sqlite` outside the project (default: `./data/kanban.sqlite`).
-- Stop the process normally to close the SQLite database. Use Export or back up the SQLite file before making manual changes.
+- Run `npm install` once to install the app and frontend build dependencies.
+- Development: run `npm run dev`; the React/Vite UI is at <http://127.0.0.1:5173> and proxies `/api` to the Express server on port 4173.
+- Production: run `npm run build`, then `npm start`; Express serves the compiled React app and API at <http://127.0.0.1:4173>.
+- Set `PORT` to change the Express port. Set `KANBAN_DATA_DIR` to store `kanban.sqlite` outside the project (default: `./data/kanban.sqlite`).
+- Stop Express normally to close SQLite. Use Export or back up the SQLite file before making manual changes.
 
 ## API
 
@@ -37,4 +37,4 @@ For retry-safe card creation by automation, send a stable `Idempotency-Key` head
 
 ## Tests
 
-Run `npm test` for isolated API integration tests using temporary SQLite databases. The browser UI is static HTML/CSS/JavaScript served by the same local process; it has no external runtime service dependency.
+Run `npm test` for React component tests and API integration tests. Run `npm run test:production` for the Vite build and Express static-serving smoke test. The Vite dev server is not used in production.

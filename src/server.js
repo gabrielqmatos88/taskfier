@@ -69,7 +69,6 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '2mb' }));
 app.use((req,_res,next)=>{if(req.body===undefined)req.body={};next();});
-if (process.env.NODE_ENV !== 'production') app.use(express.static(resolve(root, 'public')));
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/') && req.get('host') && !/^localhost(?::\d+)?$|^127\.0\.0\.1(?::\d+)?$|^\[::1\](?::\d+)?$/.test(req.get('host'))) return res.status(403).json({ error: 'Localhost access only' });
   next();

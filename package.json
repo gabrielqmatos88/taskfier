@@ -12,7 +12,10 @@
     "dev:server": "node --watch src/server.js",
     "dev:client": "vite",
     "build": "vite build",
-    "test": "node --test"
+    "test:ui": "vitest run",
+    "test:api": "node --test test/*.test.js",
+    "test": "npm run test:ui && npm run test:api",
+    "test:production": "npm run build && node --test test/production.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
@@ -22,9 +25,12 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.13",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.2.1",
-    "vite": "^6.4.6"
+    "jsdom": "^31.0.1",
+    "vite": "^6.4.6",
+    "vitest": "^5.1.1"
   }
-
 }
