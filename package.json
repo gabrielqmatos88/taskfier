@@ -7,12 +7,24 @@
     "node": ">=22"
   },
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "cross-env NODE_ENV=production node src/server.js",
+    "dev": "concurrently -k -n api,web \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "node --watch src/server.js",
+    "dev:client": "vite",
+    "build": "vite build",
     "test": "node --test"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
-    "express": "^5.1.0"
+    "cross-env": "^10.1.0",
+    "express": "^5.1.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.1",
+    "vite": "^6.4.6"
   }
+
 }
