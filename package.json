@@ -15,7 +15,9 @@
     "test:ui": "vitest run",
     "test:api": "node --test test/*.test.js",
     "test": "npm run test:ui && npm run test:api",
-    "test:production": "npm run build && node --test test/production.test.js"
+    "test:production": "npm run build && node --test test/production.test.js",
+    "format": "prettier --write \"src/**/*.{js,jsx,css}\" \"test/**/*.js\" vite.config.js index.html package.json",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,css}\" \"test/**/*.js\" vite.config.js index.html package.json"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0",
@@ -30,6 +32,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.2.1",
     "jsdom": "^31.0.1",
+    "prettier": "^3.10.1",
     "vite": "^6.4.6",
     "vitest": "^5.1.1"
   }

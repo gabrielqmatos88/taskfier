@@ -11,42 +11,443 @@ import { downloadExport } from './features/transfer/downloadExport';
 import styles from './App.module.css';
 
 export default function App() {
- const [boards,setBoards]=useState([]),[board,setBoard]=useState(null),[labels,setLabels]=useState([]),[error,setError]=useState(''),[toast,setToast]=useState(''),[status,setStatus]=useState('Ready');
- const [filter,setFilter]=useState({q:'',label:'',deadline:''}),[archiveExpanded,setArchiveExpanded]=useState(false);
- const [boardDialog,setBoardDialog]=useState(false),[cardDialog,setCardDialog]=useState(false),[columnDialog,setColumnDialog]=useState(false),[deletedDialog,setDeletedDialog]=useState(false),[deleted,setDeleted]=useState([]);
- const [editingCard,setEditingCard]=useState(null),[editingColumn,setEditingColumn]=useState(null),[cardColumn,setCardColumn]=useState(null),[menu,setMenu]=useState(null);
- const seq=useRef(0), toastTimer=useRef(null), dragCard=useRef(null);
- const notify=useCallback(message=>{setToast(message);clearTimeout(toastTimer.current);toastTimer.current=setTimeout(()=>setToast(''),2600);},[]);
- const loadBoard=useCallback(async(id=board?.id,all=archiveExpanded)=>{if(!id)return;const current=++seq.current;const [data,labelData]=await Promise.all([api.board(id,all),api.labels(id)]);if(current!==seq.current)return;setBoard(data);setLabels(labelData);setError('');},[board?.id,archiveExpanded]);
- const loadBoards=useCallback(async(selected)=>{const all=await api.boards();setBoards(all);if(!all.length){seq.current++;setBoard(null);return;}const id=selected&&all.some(b=>b.id===selected)?selected:board&&all.some(b=>b.id===board.id)?board.id:all[0].id;await loadBoard(id);},[board,loadBoard]);
- useEffect(()=>{loadBoards().catch(e=>setError(`Cannot connect to the local API: ${e.message}. Start the app with npm start.`));},[]);
- const refresh=()=>loadBoard().catch(e=>notify(e.message));
- const createBoard=async title=>{try{const b=await api.createBoard(title);setBoardDialog(false);await loadBoards(b.id);notify('Board created.');}catch(e){notify(e.message);}};
- const setBoardColor=async color=>{try{await api.updateBoard(board.id,{background:color});setBoard(b=>({...b,background:color}));}catch(e){notify(e.message);}};
- const openCard=(id,columnId)=>{const card=id?board.columns.flatMap(c=>c.cards).find(c=>c.id===id):null;setEditingCard(card||null);setCardColumn(columnId||card?.column_id);setCardDialog(true);setMenu(null);};
- const saveCard=async payload=>{try{setStatus('Saving…');if(editingCard)await api.updateCard(editingCard.id,payload);else await api.createCard(cardColumn,payload,crypto.randomUUID());setCardDialog(false);await refresh();setStatus('Saved');}catch(e){setStatus('Not saved');notify(e.message);}};
- const deleteCard=async()=>{if(!editingCard||!confirm('Delete this card? It can be restored later.'))return;try{await api.deleteCard(editingCard.id);setCardDialog(false);await refresh();notify('Card deleted.');}catch(e){notify(e.message);}};
- const moveCard=async(id,dest,position=0)=>{try{await api.updateCard(id,{columnId:dest,position});await refresh();notify('Card moved.');}catch(e){notify(e.message);}};
- const showCardMenu=(id,anchor)=>{const card=board?.columns.flatMap(c=>c.cards).find(c=>c.id===id);if(card)setMenu({type:'card',id,card,anchor});};
- const menuAction=async(action,dest)=>{const current=menu;setMenu(null);if(!current)return;if(action==='edit'){openCard(current.id,current.card.column_id);return;}if(action==='delete'){if(!confirm('Delete this card? It can be restored later.'))return;try{await api.deleteCard(current.id);await refresh();notify('Card deleted.');}catch(e){notify(e.message);}return;}if(action==='archive'){dest=board.columns.find(c=>c.title==='Archive')?.id;}if(action==='move'||action==='archive')await moveCard(current.id,dest,0);};
- const showColumn=(id)=>{setEditingColumn(id?board.columns.find(c=>c.id===id):null);setColumnDialog(true);setMenu(null);};
- const saveColumn=async payload=>{try{if(editingColumn)await api.updateColumn(editingColumn.id,payload);else await api.createColumn(board.id,payload);setColumnDialog(false);await refresh();notify('Column saved.');}catch(e){notify(e.message);}};
- const moveColumn=async direction=>{const ids=reorderedColumnIds(board.columns,editingColumn.id,direction);if(!ids)return;try{await api.reorderColumns(board.id,ids);await refresh();setColumnDialog(false);}catch(e){notify(e.message);}};
- const deleteColumn=async()=>{if(!editingColumn||!confirm('Delete this empty column?'))return;try{await api.deleteColumn(editingColumn.id);setColumnDialog(false);await refresh();}catch(e){notify(e.message);}};
- const startDrag=(e,id)=>{dragCard.current=id;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',id);};
- const dropCard=async(e,dest)=>{const id=e.dataTransfer.getData('text/plain')||dragCard.current;if(!id)return;const source=board.columns.find(c=>c.cards.some(card=>card.id===id));if(!source)return;const target=e.target.closest('[data-card]');const targetId=target?.dataset.card;
-  try{if(source.id!==dest){const cards=board.columns.find(c=>c.id===dest).cards.filter(c=>c.id!==id);const pos=targetId?Math.max(0,cards.findIndex(c=>c.id===targetId)):0;await api.updateCard(id,{columnId:dest,position:pos});}else if(targetId&&targetId!==id){const ids=source.cards.map(c=>c.id).filter(x=>x!==id);const i=ids.indexOf(targetId);ids.splice(Math.max(i,0),0,id);await api.reorderCards(dest,ids);}await refresh();}catch(err){notify(err.message);}finally{dragCard.current=null;}};
- const toggleArchive=async()=>{const next=nextArchiveVisibility(archiveExpanded);setArchiveExpanded(next);try{await loadBoard(board.id,next);}catch(e){notify(e.message);}};
- const createLabel=async(name,color)=>{if(!name)return false;try{await api.createLabel(board.id,{name,color});setLabels(await api.labels(board.id));return true;}catch(e){notify(e.message);return false;}};
- const openDeleted=async()=>{try{setDeleted(await api.deletedCards());setDeletedDialog(true);}catch(e){notify(e.message);}};
- const restore=async id=>{try{await restoreDeletedCard(id);setDeleted(cards=>cards.filter(c=>c.id!==id));await refresh();notify('Card restored.');}catch(e){notify(e.message);}};
- const exportData=async()=>{try{downloadExport(await api.exportData());notify('Export downloaded.');}catch(e){notify(e.message);}};
- const importData=async e=>{const file=e.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!confirm('Import boards from this file? Imported boards will be added.'))return;await api.importData(data);await loadBoards();notify('Import complete.');}catch(err){notify(err.message);}finally{e.target.value='';}};
- const title=board?.title||''; const columnIndex=editingColumn?board?.columns.findIndex(c=>c.id===editingColumn.id):-1;
- return <><header className={styles.topbar}><a className={styles.brand} href="/" aria-label="Local Kanban home"><span className={styles.brandMark}>K</span> kanban<span className={styles.badge}>LOCAL</span></a><div className={styles.boardPicker}><select aria-label="Choose board" value={board?.id||''} onChange={e=>{setArchiveExpanded(false);loadBoard(e.target.value,false).catch(err=>notify(err.message));}}>{boards.map(b=><option key={b.id} value={b.id}>{b.title}</option>)}</select><button className="iconButton" title="Create board" aria-label="Create board" onClick={()=>setBoardDialog(true)}>＋</button></div><div className={styles.topActions}><button className="quietButton" onClick={openDeleted}>Deleted</button><button className="quietButton" onClick={exportData}>Export</button><label className="quietButton">Import<input type="file" accept="application/json,.json" hidden onChange={importData}/></label><span aria-live="polite">{status}</span></div></header>
- <main className={styles.main} style={{backgroundColor:board?.background?`${board.background}16`:undefined}}>{error?<p className="emptyState">{error}</p>:!board?<p className="emptyState">No boards yet. Create one to get started.</p>:<><section className={styles.boardHeading}><div><input className={styles.boardTitle} aria-label="Board title" maxLength="200" defaultValue={title} key={board.id+title} onBlur={async e=>{if(e.target.value!==board.title){try{await api.updateBoard(board.id,{title:e.target.value});await loadBoards(board.id);setStatus('Saved');}catch(err){notify(err.message);e.target.value=board.title;}}}}/><p className={styles.subtitle}>{board.columns.length} columns · Local board</p></div><label className={styles.backgroundControl}><span>Board color</span><input type="color" aria-label="Board background color" value={board.background} onChange={e=>setBoardColor(e.target.value)}/></label></section>
- <SearchFilters filter={filter} labels={labels} onChange={setFilter} onClear={()=>setFilter({q:'',label:'',deadline:''})}/>
- <BoardView board={board} filter={filter} archiveExpanded={archiveExpanded} onAdd={id=>openCard(null,id)} onEdit={openCard} onCardMenu={showCardMenu} onColumnMenu={showColumn} onToggleArchive={toggleArchive} onDrop={dropCard} onDragStart={startDrag} onAddColumn={()=>showColumn(null)}/></>}</main>
- {menu?.type==='card'&&<ActionMenu anchor={menu.anchor} columns={board.columns.filter(c=>c.id!==menu.card.column_id)} onAction={menuAction} onClose={()=>setMenu(null)}/>}
- <CardDialog open={cardDialog} card={editingCard} columnId={cardColumn} labels={labels} onClose={()=>setCardDialog(false)} onSave={saveCard} onDelete={deleteCard} onCreateLabel={createLabel}/><BoardDialog open={boardDialog} onClose={()=>setBoardDialog(false)} onCreate={createBoard}/><ColumnDialog open={columnDialog} column={editingColumn} index={columnIndex} count={board?.columns.length||0} onClose={()=>setColumnDialog(false)} onSave={saveColumn} onDelete={deleteColumn} onMove={moveColumn}/><DeletedDialog open={deletedDialog} cards={deleted} onClose={()=>setDeletedDialog(false)} onRestore={restore}/><div className={`toast ${toast? 'toastVisible':''}`} role="status" aria-live="polite">{toast}</div></>;
+  const [boards, setBoards] = useState([]),
+    [board, setBoard] = useState(null),
+    [labels, setLabels] = useState([]),
+    [error, setError] = useState(''),
+    [toast, setToast] = useState(''),
+    [status, setStatus] = useState('Ready');
+  const [filter, setFilter] = useState({ q: '', label: '', deadline: '' }),
+    [archiveExpanded, setArchiveExpanded] = useState(false);
+  const [boardDialog, setBoardDialog] = useState(false),
+    [cardDialog, setCardDialog] = useState(false),
+    [columnDialog, setColumnDialog] = useState(false),
+    [deletedDialog, setDeletedDialog] = useState(false),
+    [deleted, setDeleted] = useState([]);
+  const [editingCard, setEditingCard] = useState(null),
+    [editingColumn, setEditingColumn] = useState(null),
+    [cardColumn, setCardColumn] = useState(null),
+    [menu, setMenu] = useState(null);
+  const seq = useRef(0),
+    toastTimer = useRef(null),
+    dragCard = useRef(null);
+  const notify = useCallback((message) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2600);
+  }, []);
+  const loadBoard = useCallback(
+    async (id = board?.id, all = archiveExpanded) => {
+      if (!id) return;
+      const current = ++seq.current;
+      const [data, labelData] = await Promise.all([api.board(id, all), api.labels(id)]);
+      if (current !== seq.current) return;
+      setBoard(data);
+      setLabels(labelData);
+      setError('');
+    },
+    [board?.id, archiveExpanded]
+  );
+  const loadBoards = useCallback(
+    async (selected) => {
+      const all = await api.boards();
+      setBoards(all);
+      if (!all.length) {
+        seq.current++;
+        setBoard(null);
+        return;
+      }
+      const id =
+        selected && all.some((b) => b.id === selected)
+          ? selected
+          : board && all.some((b) => b.id === board.id)
+            ? board.id
+            : all[0].id;
+      await loadBoard(id);
+    },
+    [board, loadBoard]
+  );
+  useEffect(() => {
+    loadBoards().catch((e) =>
+      setError(`Cannot connect to the local API: ${e.message}. Start the app with npm start.`)
+    );
+  }, []);
+  const refresh = () => loadBoard().catch((e) => notify(e.message));
+  const createBoard = async (title) => {
+    try {
+      const b = await api.createBoard(title);
+      setBoardDialog(false);
+      await loadBoards(b.id);
+      notify('Board created.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const setBoardColor = async (color) => {
+    try {
+      await api.updateBoard(board.id, { background: color });
+      setBoard((b) => ({ ...b, background: color }));
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const openCard = (id, columnId) => {
+    const card = id ? board.columns.flatMap((c) => c.cards).find((c) => c.id === id) : null;
+    setEditingCard(card || null);
+    setCardColumn(columnId || card?.column_id);
+    setCardDialog(true);
+    setMenu(null);
+  };
+  const saveCard = async (payload) => {
+    try {
+      setStatus('Saving…');
+      if (editingCard) await api.updateCard(editingCard.id, payload);
+      else await api.createCard(cardColumn, payload, crypto.randomUUID());
+      setCardDialog(false);
+      await refresh();
+      setStatus('Saved');
+    } catch (e) {
+      setStatus('Not saved');
+      notify(e.message);
+    }
+  };
+  const deleteCard = async () => {
+    if (!editingCard || !confirm('Delete this card? It can be restored later.')) return;
+    try {
+      await api.deleteCard(editingCard.id);
+      setCardDialog(false);
+      await refresh();
+      notify('Card deleted.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const moveCard = async (id, dest, position = 0) => {
+    try {
+      await api.updateCard(id, { columnId: dest, position });
+      await refresh();
+      notify('Card moved.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const showCardMenu = (id, anchor) => {
+    const card = board?.columns.flatMap((c) => c.cards).find((c) => c.id === id);
+    if (card) setMenu({ type: 'card', id, card, anchor });
+  };
+  const menuAction = async (action, dest) => {
+    const current = menu;
+    setMenu(null);
+    if (!current) return;
+    if (action === 'edit') {
+      openCard(current.id, current.card.column_id);
+      return;
+    }
+    if (action === 'delete') {
+      if (!confirm('Delete this card? It can be restored later.')) return;
+      try {
+        await api.deleteCard(current.id);
+        await refresh();
+        notify('Card deleted.');
+      } catch (e) {
+        notify(e.message);
+      }
+      return;
+    }
+    if (action === 'archive') {
+      dest = board.columns.find((c) => c.title === 'Archive')?.id;
+    }
+    if (action === 'move' || action === 'archive') await moveCard(current.id, dest, 0);
+  };
+  const showColumn = (id) => {
+    setEditingColumn(id ? board.columns.find((c) => c.id === id) : null);
+    setColumnDialog(true);
+    setMenu(null);
+  };
+  const saveColumn = async (payload) => {
+    try {
+      if (editingColumn) await api.updateColumn(editingColumn.id, payload);
+      else await api.createColumn(board.id, payload);
+      setColumnDialog(false);
+      await refresh();
+      notify('Column saved.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const moveColumn = async (direction) => {
+    const ids = reorderedColumnIds(board.columns, editingColumn.id, direction);
+    if (!ids) return;
+    try {
+      await api.reorderColumns(board.id, ids);
+      await refresh();
+      setColumnDialog(false);
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const deleteColumn = async () => {
+    if (!editingColumn || !confirm('Delete this empty column?')) return;
+    try {
+      await api.deleteColumn(editingColumn.id);
+      setColumnDialog(false);
+      await refresh();
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const startDrag = (e, id) => {
+    dragCard.current = id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+  };
+  const dropCard = async (e, dest) => {
+    const id = e.dataTransfer.getData('text/plain') || dragCard.current;
+    if (!id) return;
+    const source = board.columns.find((c) => c.cards.some((card) => card.id === id));
+    if (!source) return;
+    const target = e.target.closest('[data-card]');
+    const targetId = target?.dataset.card;
+    try {
+      if (source.id !== dest) {
+        const cards = board.columns.find((c) => c.id === dest).cards.filter((c) => c.id !== id);
+        const pos = targetId
+          ? Math.max(
+              0,
+              cards.findIndex((c) => c.id === targetId)
+            )
+          : 0;
+        await api.updateCard(id, { columnId: dest, position: pos });
+      } else if (targetId && targetId !== id) {
+        const ids = source.cards.map((c) => c.id).filter((x) => x !== id);
+        const i = ids.indexOf(targetId);
+        ids.splice(Math.max(i, 0), 0, id);
+        await api.reorderCards(dest, ids);
+      }
+      await refresh();
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      dragCard.current = null;
+    }
+  };
+  const toggleArchive = async () => {
+    const next = nextArchiveVisibility(archiveExpanded);
+    setArchiveExpanded(next);
+    try {
+      await loadBoard(board.id, next);
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const createLabel = async (name, color) => {
+    if (!name) return false;
+    try {
+      await api.createLabel(board.id, { name, color });
+      setLabels(await api.labels(board.id));
+      return true;
+    } catch (e) {
+      notify(e.message);
+      return false;
+    }
+  };
+  const openDeleted = async () => {
+    try {
+      setDeleted(await api.deletedCards());
+      setDeletedDialog(true);
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const restore = async (id) => {
+    try {
+      await restoreDeletedCard(id);
+      setDeleted((cards) => cards.filter((c) => c.id !== id));
+      await refresh();
+      notify('Card restored.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const exportData = async () => {
+    try {
+      downloadExport(await api.exportData());
+      notify('Export downloaded.');
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+  const importData = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      if (!confirm('Import boards from this file? Imported boards will be added.')) return;
+      await api.importData(data);
+      await loadBoards();
+      notify('Import complete.');
+    } catch (err) {
+      notify(err.message);
+    } finally {
+      e.target.value = '';
+    }
+  };
+  const title = board?.title || '';
+  const columnIndex = editingColumn
+    ? board?.columns.findIndex((c) => c.id === editingColumn.id)
+    : -1;
+  return (
+    <>
+      <header className={styles.topbar}>
+        <a className={styles.brand} href="/" aria-label="Local Kanban home">
+          <span className={styles.brandMark}>K</span> kanban
+          <span className={styles.badge}>LOCAL</span>
+        </a>
+        <div className={styles.boardPicker}>
+          <select
+            aria-label="Choose board"
+            value={board?.id || ''}
+            onChange={(e) => {
+              setArchiveExpanded(false);
+              loadBoard(e.target.value, false).catch((err) => notify(err.message));
+            }}
+          >
+            {boards.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.title}
+              </option>
+            ))}
+          </select>
+          <button
+            className="iconButton"
+            title="Create board"
+            aria-label="Create board"
+            onClick={() => setBoardDialog(true)}
+          >
+            ＋
+          </button>
+        </div>
+        <div className={styles.topActions}>
+          <button className="quietButton" onClick={openDeleted}>
+            Deleted
+          </button>
+          <button className="quietButton" onClick={exportData}>
+            Export
+          </button>
+          <label className="quietButton">
+            Import
+            <input type="file" accept="application/json,.json" hidden onChange={importData} />
+          </label>
+          <span aria-live="polite">{status}</span>
+        </div>
+      </header>
+      <main
+        className={styles.main}
+        style={{ backgroundColor: board?.background ? `${board.background}16` : undefined }}
+      >
+        {error ? (
+          <p className="emptyState">{error}</p>
+        ) : !board ? (
+          <p className="emptyState">No boards yet. Create one to get started.</p>
+        ) : (
+          <>
+            <section className={styles.boardHeading}>
+              <div>
+                <input
+                  className={styles.boardTitle}
+                  aria-label="Board title"
+                  maxLength="200"
+                  defaultValue={title}
+                  key={board.id + title}
+                  onBlur={async (e) => {
+                    if (e.target.value !== board.title) {
+                      try {
+                        await api.updateBoard(board.id, { title: e.target.value });
+                        await loadBoards(board.id);
+                        setStatus('Saved');
+                      } catch (err) {
+                        notify(err.message);
+                        e.target.value = board.title;
+                      }
+                    }
+                  }}
+                />
+                <p className={styles.subtitle}>{board.columns.length} columns · Local board</p>
+              </div>
+              <label className={styles.backgroundControl}>
+                <span>Board color</span>
+                <input
+                  type="color"
+                  aria-label="Board background color"
+                  value={board.background}
+                  onChange={(e) => setBoardColor(e.target.value)}
+                />
+              </label>
+            </section>
+            <SearchFilters
+              filter={filter}
+              labels={labels}
+              onChange={setFilter}
+              onClear={() => setFilter({ q: '', label: '', deadline: '' })}
+            />
+            <BoardView
+              board={board}
+              filter={filter}
+              archiveExpanded={archiveExpanded}
+              onAdd={(id) => openCard(null, id)}
+              onEdit={openCard}
+              onCardMenu={showCardMenu}
+              onColumnMenu={showColumn}
+              onToggleArchive={toggleArchive}
+              onDrop={dropCard}
+              onDragStart={startDrag}
+              onAddColumn={() => showColumn(null)}
+            />
+          </>
+        )}
+      </main>
+      {menu?.type === 'card' && (
+        <ActionMenu
+          anchor={menu.anchor}
+          columns={board.columns.filter((c) => c.id !== menu.card.column_id)}
+          onAction={menuAction}
+          onClose={() => setMenu(null)}
+        />
+      )}
+      <CardDialog
+        open={cardDialog}
+        card={editingCard}
+        columnId={cardColumn}
+        labels={labels}
+        onClose={() => setCardDialog(false)}
+        onSave={saveCard}
+        onDelete={deleteCard}
+        onCreateLabel={createLabel}
+      />
+      <BoardDialog
+        open={boardDialog}
+        onClose={() => setBoardDialog(false)}
+        onCreate={createBoard}
+      />
+      <ColumnDialog
+        open={columnDialog}
+        column={editingColumn}
+        index={columnIndex}
+        count={board?.columns.length || 0}
+        onClose={() => setColumnDialog(false)}
+        onSave={saveColumn}
+        onDelete={deleteColumn}
+        onMove={moveColumn}
+      />
+      <DeletedDialog
+        open={deletedDialog}
+        cards={deleted}
+        onClose={() => setDeletedDialog(false)}
+        onRestore={restore}
+      />
+      <div className={`toast ${toast ? 'toastVisible' : ''}`} role="status" aria-live="polite">
+        {toast}
+      </div>
+    </>
+  );
 }

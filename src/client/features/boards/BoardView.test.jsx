@@ -10,18 +10,26 @@ const archiveCards = Array.from({ length: 10 }, (_, index) => ({
   color: 'yellow',
   priority: 'normal',
   labels: [],
-  checklist: [],
+  checklist: []
 }));
 
 describe('BoardView', () => {
   it('offers to reveal older archive cards when the default ten-card window is full', () => {
-    render(<BoardView
-      board={{ columns: [{ id: 'archive', title: 'Archive', cards: archiveCards }] }}
-      filter={{ q: '', label: '', deadline: '' }}
-      archiveExpanded={false}
-      onAdd={noop} onEdit={noop} onCardMenu={noop} onColumnMenu={noop}
-      onToggleArchive={noop} onDrop={noop} onDragStart={noop} onAddColumn={noop}
-    />);
+    render(
+      <BoardView
+        board={{ columns: [{ id: 'archive', title: 'Archive', cards: archiveCards }] }}
+        filter={{ q: '', label: '', deadline: '' }}
+        archiveExpanded={false}
+        onAdd={noop}
+        onEdit={noop}
+        onCardMenu={noop}
+        onColumnMenu={noop}
+        onToggleArchive={noop}
+        onDrop={noop}
+        onDragStart={noop}
+        onAddColumn={noop}
+      />
+    );
 
     expect(screen.getByRole('button', { name: 'Show all archived cards' })).toBeTruthy();
   });

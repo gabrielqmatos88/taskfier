@@ -6,14 +6,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': apiTarget,
-    },
+      '/api': apiTarget
+    }
   },
   build: {
-    outDir: 'dist',
+    outDir: 'dist'
   },
   test: {
     environment: 'jsdom',
-    include: ['src/client/**/*.test.{js,jsx}'],
-  },
+    include: ['src/client/**/*.test.{js,jsx}']
+  }
 });

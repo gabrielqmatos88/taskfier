@@ -5,7 +5,7 @@ import ActionMenu from './ActionMenu';
 
 afterEach(() => {
   cleanup();
-  document.querySelectorAll('[data-menu-anchor]').forEach(node => node.remove());
+  document.querySelectorAll('[data-menu-anchor]').forEach((node) => node.remove());
 });
 
 describe('ActionMenu', () => {
@@ -14,7 +14,14 @@ describe('ActionMenu', () => {
     anchor.dataset.menuAnchor = '';
     document.body.append(anchor);
     const onAction = vi.fn();
-    render(<ActionMenu anchor={anchor} columns={[{ id: 'todo', title: 'To Do' }]} onAction={onAction} onClose={vi.fn()} />);
+    render(
+      <ActionMenu
+        anchor={anchor}
+        columns={[{ id: 'todo', title: 'To Do' }]}
+        onAction={onAction}
+        onClose={vi.fn()}
+      />
+    );
 
     const menu = screen.getByRole('menu');
     expect(menu.parentElement).toBe(document.body);
